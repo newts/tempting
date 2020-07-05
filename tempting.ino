@@ -241,6 +241,13 @@ double CtoF(double c)
 }
 
 
+  
+
+double mapd(double x, double in_min, double in_max, double out_min, double out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
 
 void loop()
 {
@@ -253,14 +260,19 @@ void loop()
   error = SETPOINT - temperC;
   if (error < 0) {
     error = 0;
+    pwm = 0;
   }
   else {
-    pwm = map(error, SETPOINT-5.0, SETPOINT,   255, 0);
+    pwm = mapd(temperC, SETPOINT-2.0, SETPOINT,   255, 0);
+    Serial.println((int) pwm);
     if (pwm > 255) {
       pwm = 255;
     }
+    else if (pwm < 0) {
+      pwm = 0;
+    }
   }
-  analogWrite(HEATER_DRIVE, pwm);
+  analogWrite(HEATER_DRIVE, (int) pwm);
 
 
   if (!digitalRead(UNITS)) {
@@ -277,10 +289,6 @@ void loop()
   myGLCD.setColor(VGA_WHITE);
   myGLCD.setBackColor(VGA_BLACK);
 
-  //  dt = ambient + 0.005;
-  // sprintf(s, "Ambient %d.%02d %s ", int(dt), int(dt * 100) % 100, units);
-  //  myGLCD.print(s, 18, 26);
-  //  Serial.print(s);
 
   myGLCD.setFont(BigFont);
   if (temperC > SETPOINT) {
@@ -310,5 +318,5 @@ void loop()
   graph(temperC * 100);
 
 
-  delay(80);
+  delay(1000);
 }
