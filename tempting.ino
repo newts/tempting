@@ -27,6 +27,12 @@ DallasTemperature sensors(&oneWire);
 #define UNITS 4
 
 
+#define HEATER_DRIVE 6
+#define SETPOINT 32.0
+
+
+
+
 // Library only supports software SPI at this time
 //NOTE: support  DUE , MEGA , UNO
 //SDI=11  SCL=13  /CS =10  /RST=8  D/C=9
@@ -59,7 +65,7 @@ int _graph[GRAPH_X];
 
 #define GRAPH_BACK_COLOR VGA_WHITE
 #define GRAPH_POINT_COLOR VGA_RED
-void graph(uint16_t p, bool init=false)
+void graph(uint16_t p, bool init = false)
 {
   int i;
   uint16_t miny = 0xffff;;
@@ -67,9 +73,9 @@ void graph(uint16_t p, bool init=false)
   int y1, y2;
 
   if (init) {
-      for (i = 0; i < GRAPH_X; i++) {
-        _graph[i] = p;
-      }
+    for (i = 0; i < GRAPH_X; i++) {
+      _graph[i] = p;
+    }
     return;
   }
 
@@ -93,12 +99,12 @@ void graph(uint16_t p, bool init=false)
       maxy = _graph[i];
     }
   }
-  if ((maxy-miny) < 10) {
-    if (miny>10) {
-      miny-=10;
+  if ((maxy - miny) < 10) {
+    if (miny > 10) {
+      miny -= 10;
     }
     else {
-      maxy+=10;
+      maxy += 10;
     }
   }
 
@@ -107,8 +113,8 @@ void graph(uint16_t p, bool init=false)
     y1 = map(_graph[i], miny, maxy, GRAPH_BOTTOM, GRAPH_TOP);
     y2 = map(_graph[i + 1], miny, maxy, GRAPH_BOTTOM, GRAPH_TOP);
 
-  //  sprintf(s, "miny=%d maxy=%d y1=%d y2=%d\n", miny, maxy, y1, y2);
-  //  Serial.print(s);
+    //  sprintf(s, "miny=%d maxy=%d y1=%d y2=%d\n", miny, maxy, y1, y2);
+    //  Serial.print(s);
     myGLCD.drawLine(i, y1, i + 1, y2);
   }
 
@@ -125,6 +131,8 @@ void setup()
   float de;
 
   Serial.begin(115200);
+
+  pinMode(HEATER_DRIVE, OUTPUT);
 
   // Setup switches and blinky
   //
@@ -222,7 +230,7 @@ void setup()
   myGLCD.print("MakeIt Labs", CENTER, 1);
 
   temperC = sensors.getTempCByIndex(0);
-  graph(temperC*100,true);
+  graph(temperC * 100, true);
   delay(2000);
 }
 
@@ -236,52 +244,60 @@ double CtoF(double c)
 
 void loop()
 {
- // if (++tick % 2 == 0) {
+  double error;
+  double pwm;
 
-    // Only update temperature when button pressed
-    //
-    //   if (!digitalRead(BUTTON_A)) {
-    sensors.requestTemperatures();
-    temperC = sensors.getTempCByIndex(0);
-    //   }
+  sensors.requestTemperatures();
+  temperC = sensors.getTempCByIndex(0);
 
-    if (!digitalRead(UNITS)) {
-      temper = CtoF(temperC);
-      units = "F";
+  error = SETPOINT - temperC;
+  if (error < 0) {
+    error = 0;
+  }
+  else {
+    pwm = map(error, SETPOINT-5.0, SETPOINT,   255, 0);
+    if (pwm > 255) {
+      pwm = 255;
     }
-    else {
-      temper = temperC;
-      units = "C";
-    }
+  }
+  analogWrite(HEATER_DRIVE, pwm);
 
 
-    myGLCD.setFont(SmallFont);
-    myGLCD.setColor(VGA_WHITE);
-    myGLCD.setBackColor(VGA_BLACK);
+  if (!digitalRead(UNITS)) {
+    temper = CtoF(temperC);
+    units = "F";
+  }
+  else {
+    temper = temperC;
+    units = "C";
+  }
 
-    //  dt = ambient + 0.005;
-    // sprintf(s, "Ambient %d.%02d %s ", int(dt), int(dt * 100) % 100, units);
-    //  myGLCD.print(s, 18, 26);
-    //  Serial.print(s);
 
-    // Determine the color based on fever.  Temperatures are arbitrarily based on google.
-    //
-    myGLCD.setFont(BigFont);
-    if (temperC > 39.0) {
-      myGLCD.setColor(VGA_RED);
-    }
-    else if (temperC > 38) {
-      myGLCD.setColor(VGA_YELLOW);
-    }
-    else {
-      myGLCD.setColor(VGA_GREEN);
-    }
+  myGLCD.setFont(SmallFont);
+  myGLCD.setColor(VGA_WHITE);
+  myGLCD.setBackColor(VGA_BLACK);
 
-    dt = temper + 0.005;
-    sprintf(s, " %d.%02d %s ", int(dt), int(dt * 100) % 100, units);
-    myGLCD.print(s, 16, TEMP_TOP);
-    Serial.println(s);
-//  }
+  //  dt = ambient + 0.005;
+  // sprintf(s, "Ambient %d.%02d %s ", int(dt), int(dt * 100) % 100, units);
+  //  myGLCD.print(s, 18, 26);
+  //  Serial.print(s);
+
+  myGLCD.setFont(BigFont);
+  if (temperC > SETPOINT) {
+    myGLCD.setColor(VGA_RED);
+  }
+  else if (temperC > (SETPOINT-2.0)) {
+    myGLCD.setColor(VGA_YELLOW);
+  }
+  else {
+    myGLCD.setColor(VGA_GREEN);
+  }
+
+  dt = temper + 0.005;
+  sprintf(s, " %d.%02d %s %d", int(dt), int(dt * 100) % 100, units, (int) pwm);
+  myGLCD.print(s, 16, TEMP_TOP);
+  Serial.println(s);
+
 
   if (tick & 4) {
     digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
@@ -290,9 +306,9 @@ void loop()
     digitalWrite(LED_BUILTIN, LOW);
   }
 
- // if ((tick % 2) == 0) {
-    graph(temperC*100);
-//  }
+
+  graph(temperC * 100);
+
 
   delay(80);
 }
