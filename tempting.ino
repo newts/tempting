@@ -2,8 +2,8 @@
 
 // https://pmdway.com/products/0-96-80-x-160-full-color-lcd-module
 #include <UTFT.h>
-
 #include <EEPROM.h>
+#include <PID_v1.h>
 
 
 // First we include the libraries
@@ -264,7 +264,6 @@ void loop()
   }
   else {
     pwm = mapd(temperC, SETPOINT-2.0, SETPOINT,   255, 0);
-    Serial.println((int) pwm);
     if (pwm > 255) {
       pwm = 255;
     }
@@ -318,5 +317,5 @@ void loop()
   graph(temperC * 100);
 
 
-  delay(1000);
+  delay(500);
 }
