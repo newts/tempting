@@ -21,6 +21,13 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
 
+double Setpoint, Input, Output;
+
+//Specify the links and initial tuning parameters
+PID heaterPID(&Input, &Output, &Setpoint, 50, 20, 1.3, DIRECT);
+
+
+
 // Define buttons
 //
 #define BUTTON_A  3
@@ -28,7 +35,7 @@ DallasTemperature sensors(&oneWire);
 
 
 #define HEATER_DRIVE 6
-#define SETPOINT 32.0
+#define SETPOINT 37.0
 
 
 
@@ -231,6 +238,15 @@ void setup()
 
   temperC = sensors.getTempCByIndex(0);
   graph(temperC * 100, true);
+
+  //initialize the variables we're linked to
+  Input = temperC;
+  Setpoint = SETPOINT;
+
+  //turn the PID on
+  heaterPID.SetMode(AUTOMATIC);
+
+
   delay(2000);
 }
 
@@ -241,7 +257,7 @@ double CtoF(double c)
 }
 
 
-  
+
 
 double mapd(double x, double in_min, double in_max, double out_min, double out_max)
 {
@@ -249,28 +265,19 @@ double mapd(double x, double in_min, double in_max, double out_min, double out_m
 }
 
 
+
+
 void loop()
 {
-  double error;
   double pwm;
 
   sensors.requestTemperatures();
   temperC = sensors.getTempCByIndex(0);
 
-  error = SETPOINT - temperC;
-  if (error < 0) {
-    error = 0;
-    pwm = 0;
-  }
-  else {
-    pwm = mapd(temperC, SETPOINT-2.0, SETPOINT,   255, 0);
-    if (pwm > 255) {
-      pwm = 255;
-    }
-    else if (pwm < 0) {
-      pwm = 0;
-    }
-  }
+  Input = temperC;
+  heaterPID.Compute();
+
+  pwm = Output;
   analogWrite(HEATER_DRIVE, (int) pwm);
 
 
@@ -293,7 +300,7 @@ void loop()
   if (temperC > SETPOINT) {
     myGLCD.setColor(VGA_RED);
   }
-  else if (temperC > (SETPOINT-2.0)) {
+  else if (temperC > (SETPOINT - 1.0)) {
     myGLCD.setColor(VGA_YELLOW);
   }
   else {
@@ -313,9 +320,7 @@ void loop()
     digitalWrite(LED_BUILTIN, LOW);
   }
 
-
   graph(temperC * 100);
 
-
-  delay(500);
+  delay(200);
 }
