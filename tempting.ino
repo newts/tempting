@@ -24,7 +24,7 @@ DallasTemperature sensors(&oneWire);
 double Setpoint, Input, Output;
 
 //Specify the links and initial tuning parameters
-PID heaterPID(&Input, &Output, &Setpoint, 30, 20, 1.3, DIRECT);
+PID heaterPID(&Input, &Output, &Setpoint, 250, 2, 1.2, DIRECT);
 
 
 
@@ -35,7 +35,9 @@ PID heaterPID(&Input, &Output, &Setpoint, 30, 20, 1.3, DIRECT);
 
 
 #define HEATER_DRIVE 6
-#define SETPOINT 30.0
+#define SETPOINT 35.0
+
+const int graph_setpoint = SETPOINT * 100;
 
 
 
@@ -51,12 +53,9 @@ extern uint8_t BigFont[];
 
 
 int tick;
-double emissivity = 33;
-const double E_MIN = 16;
-const double E_MAX = 40;
-const double E_STEP = 0.1;
+
 double ambient, ambientC;
-double temper, temperC;
+double temper, temperC, error;
 char s[32];
 double dt;
 char *units;
@@ -107,6 +106,7 @@ void graph(uint16_t p, bool init = false)
   uint16_t maxy = 0;
   int y1, y2;
 
+
   if (init) {
     for (i = 0; i < GRAPH_X; i++) {
       _graph[i] = p;
@@ -143,15 +143,24 @@ void graph(uint16_t p, bool init = false)
     }
   }
 
+  // draw the setpoint if it's on the screen
+  //
+  if ((graph_setpoint > miny) && (graph_setpoint < maxy)) {
+    myGLCD.setColor(VGA_GREEN);
+    y1 = map(graph_setpoint, miny, maxy, GRAPH_BOTTOM, GRAPH_TOP);
+
+    myGLCD.drawLine(0, y1, (GRAPH_X - 1), y1);
+  }
+
 
   for (i = 0; i < (GRAPH_X - 1); i++) {
     y1 = map(_graph[i], miny, maxy, GRAPH_BOTTOM, GRAPH_TOP);
     y2 = map(_graph[i + 1], miny, maxy, GRAPH_BOTTOM, GRAPH_TOP);
 
-    //  sprintf(s, "miny=%d maxy=%d y1=%d y2=%d\n", miny, maxy, y1, y2);
-    //  Serial.print(s);
     myGLCD.drawLine(i, y1, i + 1, y2);
   }
+
+
 
 }
 
@@ -183,74 +192,6 @@ void setup()
   //
   myGLCD.InitLCD();
   myGLCD.setFont(SmallFont);
-
-
-  // SETUP Mode
-  // Hold the button down on powerup to enter SETUP mode.
-  // Units switch determines increment or decrement on each button push.
-  // 20 second idle time to get out of setup mode
-  //
-#define SETUP_DONE 2000
-  if (!digitalRead(BUTTON_A)) {
-
-    // Clear the screen and draw the frame
-    myGLCD.clrScr();
-    myGLCD.setColor(VGA_BLUE);
-    myGLCD.fillRect(0, 0, 159, 13);
-
-    myGLCD.setColor(VGA_YELLOW);
-    myGLCD.setBackColor(VGA_BLUE);
-    myGLCD.print("SETUP Emissitivity", CENTER, 1);
-    myGLCD.setFont(SmallFont);
-    myGLCD.setColor(VGA_WHITE);
-    myGLCD.setBackColor(VGA_BLACK);
-
-    while (setup < SETUP_DONE) {
-
-      de = emissivity + 0.005;
-      sprintf(s, "e=%d.%02d ", int(de), int(de * 100) % 100);
-      myGLCD.print(s, 18, 26);
-      Serial.println(s);
-
-      // wait for button up
-      //
-      while (!digitalRead(BUTTON_A)) {
-        delay(10);
-      }
-      delay(10); // debounce
-
-      // wait for the button to go down or timeout of out setup mode
-      //
-      setup = 0;
-      while (digitalRead(BUTTON_A)) {
-        if (++setup > SETUP_DONE) {
-          break;
-        }
-        delay(10);
-      }
-      delay(10); // debounce
-
-      // if the button is down then increment/decrement
-      //
-      if (!digitalRead(BUTTON_A)) {
-        if (digitalRead(UNITS)) {
-          emissivity += E_STEP;
-          if (emissivity > E_MAX) {
-            emissivity = E_MAX;
-          }
-        }
-        else {
-          emissivity -= E_STEP;
-          if (emissivity < E_MIN) {
-            emissivity = E_MIN;
-          }
-        }
-      }
-    }
-    // WRITE E HERE
-    //
-    // eeprom;
-  }
 
 
   // setup the screen for action
@@ -331,17 +272,16 @@ void loop()
   myGLCD.setColor(VGA_WHITE);
   myGLCD.setBackColor(VGA_BLACK);
 
+  error = abs(temperC - SETPOINT);
 
   myGLCD.setFont(BigFont);
-  if (temperC > SETPOINT) {
-    myGLCD.setColor(VGA_RED);
-  }
-  else if (temperC > (SETPOINT - 1.0)) {
-    myGLCD.setColor(VGA_YELLOW);
-  }
-  else {
+  if (error < 0.2) {
     myGLCD.setColor(VGA_GREEN);
   }
+  else {
+    myGLCD.setColor(VGA_YELLOW);
+  }
+
 
   dt = temper + 0.005;
   sprintf(s, " %d.%02d %s %d", int(dt), int(dt * 100) % 100, units, (int) Output);
