@@ -24,7 +24,7 @@ DallasTemperature sensors(&oneWire);
 double Setpoint, Input, Output;
 
 //Specify the links and initial tuning parameters
-PID heaterPID(&Input, &Output, &Setpoint, 50, 20, 1.3, DIRECT);
+PID heaterPID(&Input, &Output, &Setpoint, 30, 20, 1.3, DIRECT);
 
 
 
@@ -35,7 +35,7 @@ PID heaterPID(&Input, &Output, &Setpoint, 50, 20, 1.3, DIRECT);
 
 
 #define HEATER_DRIVE 6
-#define SETPOINT 37.0
+#define SETPOINT 30.0
 
 
 
@@ -68,6 +68,34 @@ char *units;
 #define GRAPH_X 160
 #define GRAPH_BOTTOM (TEMP_TOP-2)
 int _graph[GRAPH_X];
+
+
+void SetupTimer2() {
+  noInterrupts();
+  // Clear registers
+  TCCR2A = 0;
+  TCCR2B = 0;
+  TCNT2 = 0;
+
+  // 100.16025641025641 Hz (16000000/((155+1)*1024))
+  OCR2A = 155;
+  // CTC
+  TCCR2A |= (1 << WGM21);
+  // Prescaler 1024
+  TCCR2B |= (1 << CS22) | (1 << CS21) | (1 << CS20);
+  // Output Compare Match A Interrupt Enable
+  TIMSK2 |= (1 << OCIE2A);
+  interrupts();
+}
+
+
+int isr_ticker = 20;
+
+ISR(TIMER2_COMPA_vect) {
+  if (isr_ticker--) return;
+  isr_ticker = 20;
+  DoPID();
+}
 
 
 #define GRAPH_BACK_COLOR VGA_WHITE
@@ -148,7 +176,8 @@ void setup()
   pinMode(LED_BUILTIN, OUTPUT);
 
   sensors.begin();
-
+  // This line disables delay in the library
+  sensors.setWaitForConversion(false);
 
   // Setup the LCD
   //
@@ -240,14 +269,18 @@ void setup()
   graph(temperC * 100, true);
 
   //initialize the variables we're linked to
+  //
   Input = temperC;
   Setpoint = SETPOINT;
 
   //turn the PID on
   heaterPID.SetMode(AUTOMATIC);
+  heaterPID.SetSampleTime(200);
+
+  SetupTimer2();
 
 
-  delay(2000);
+  delay(20);
 }
 
 
@@ -266,10 +299,8 @@ double mapd(double x, double in_min, double in_max, double out_min, double out_m
 
 
 
-
-void loop()
+void DoPID()
 {
-  double pwm;
 
   sensors.requestTemperatures();
   temperC = sensors.getTempCByIndex(0);
@@ -277,9 +308,14 @@ void loop()
   Input = temperC;
   heaterPID.Compute();
 
-  pwm = Output;
-  analogWrite(HEATER_DRIVE, (int) pwm);
+  analogWrite(HEATER_DRIVE, (int) Output);
+}
 
+
+void loop()
+{
+
+  // assume the timer interrupt will update temperC in the background
 
   if (!digitalRead(UNITS)) {
     temper = CtoF(temperC);
@@ -308,7 +344,7 @@ void loop()
   }
 
   dt = temper + 0.005;
-  sprintf(s, " %d.%02d %s %d", int(dt), int(dt * 100) % 100, units, (int) pwm);
+  sprintf(s, " %d.%02d %s %d", int(dt), int(dt * 100) % 100, units, (int) Output);
   myGLCD.print(s, 16, TEMP_TOP);
   Serial.println(s);
 
@@ -322,5 +358,5 @@ void loop()
 
   graph(temperC * 100);
 
-  delay(200);
+  delay(1000);
 }
