@@ -24,7 +24,7 @@ DallasTemperature sensors(&oneWire);
 double Setpoint, Input, Output;
 
 //Specify the links and initial tuning parameters
-PID heaterPID(&Input, &Output, &Setpoint, 250, 2, 1.2, DIRECT);
+PID heaterPID(&Input, &Output, &Setpoint, 300, 2, 1.5, DIRECT);
 
 
 
@@ -35,7 +35,7 @@ PID heaterPID(&Input, &Output, &Setpoint, 250, 2, 1.2, DIRECT);
 
 
 #define HEATER_DRIVE 6
-#define SETPOINT 35.0
+#define SETPOINT 37.0
 
 const int graph_setpoint = SETPOINT * 100;
 
@@ -116,7 +116,7 @@ void graph(uint16_t p, bool init = false)
 
   myGLCD.setColor(GRAPH_BACK_COLOR);
   myGLCD.fillRoundRect(0, GRAPH_TOP, GRAPH_X, GRAPH_BOTTOM);
-  myGLCD.setColor(GRAPH_POINT_COLOR);
+
 
   // skootch the old data and add the new point
   //
@@ -152,7 +152,7 @@ void graph(uint16_t p, bool init = false)
     myGLCD.drawLine(0, y1, (GRAPH_X - 1), y1);
   }
 
-
+  myGLCD.setColor(GRAPH_POINT_COLOR);
   for (i = 0; i < (GRAPH_X - 1); i++) {
     y1 = map(_graph[i], miny, maxy, GRAPH_BOTTOM, GRAPH_TOP);
     y2 = map(_graph[i + 1], miny, maxy, GRAPH_BOTTOM, GRAPH_TOP);
